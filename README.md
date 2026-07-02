@@ -1,6 +1,3 @@
-# vortextech-aiml-week2
-Week 2 task for the Vortex Tech AI/ML internship, binary classification model using Python and scikit-learn
-
 # Vortex Tech AI/ML Internship — Week 2
 
 Binary classification project completed for Week 2 of the AI/ML Internship 

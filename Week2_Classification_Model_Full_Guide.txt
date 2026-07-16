@@ -1,0 +1,336 @@
+VORTEX TECH AI/ML INTERNSHIP - WEEK 2 - FULL CODE GUIDE
+Project: Build a Classification Model
+Dataset: pk_student_employability_cleaned.csv (the cleaned file exported at the end
+of your Week 1 notebook)
+Target column: likely_to_get_hired (Yes / No)
+
+Note on class imbalance: in this dataset, about 96 percent of students are labeled
+Yes and only about 4 percent are labeled No. This is realistic and intentional to
+work with, not a mistake, but it means accuracy alone will look artificially good.
+This is exactly why Step 9 below asks for precision, recall, and F1-score, not just
+accuracy.
+
+------------------------------------------------------------
+STEP 1: Import libraries
+------------------------------------------------------------
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+Explanation:
+Same four libraries from Week 1. Scikit-learn is not imported here as one block,
+because this guide imports specific pieces of it later, right where each piece is
+first used, so each import maps to a concrete need rather than being a wall of
+imports at the top that means nothing yet.
+
+------------------------------------------------------------
+STEP 2: Load the cleaned dataset
+------------------------------------------------------------
+
+df = pd.read_csv('pk_student_employability_cleaned.csv')
+df.shape
+df.head()
+
+Explanation:
+This loads the dataset you already cleaned and exported in Week 1, rather than the
+raw file, so missing values and duplicates are already handled. shape confirms row
+and column counts, head previews the first 5 rows to confirm it loaded correctly.
+
+------------------------------------------------------------
+STEP 3: Look at the target column
+------------------------------------------------------------
+
+df['likely_to_get_hired'].value_counts()
+df['likely_to_get_hired'].value_counts(normalize=True) * 100
+
+Explanation:
+value_counts shows how many rows fall into each class, Yes or No. Adding
+normalize=True and multiplying by 100 converts that into percentages, which is how
+the roughly 96 percent Yes, 4 percent No split mentioned above is confirmed
+directly from the data rather than assumed.
+
+------------------------------------------------------------
+STEP 4: Convert the target to numeric
+------------------------------------------------------------
+
+df['target'] = (df['likely_to_get_hired'] == 'Yes').astype(int)
+df['target'].value_counts()
+
+Explanation:
+Scikit-learn's classification models expect numeric labels, not text. The
+comparison df['likely_to_get_hired'] == 'Yes' produces True or False for every row,
+and .astype(int) converts True to 1 and False to 0. The result is stored in a new
+column called target, so the original likely_to_get_hired column is preserved for
+reference. Running value_counts again on the new column should show the same split
+as Step 3, just as 1s and 0s instead of Yes and No.
+
+------------------------------------------------------------
+STEP 5: Decide which columns are features, and which to exclude
+------------------------------------------------------------
+
+This step is reasoning first, code second. At minimum, three columns must NOT be
+used as features, for three different reasons:
+
+- student_id: a unique identifier per row, carries no real predictive information,
+  and including it would let the model latch onto row identity rather than
+  learning real patterns.
+- likely_to_get_hired: this is the source of your target column, so it cannot also
+  be a feature, or the model would just be looking up its own answer.
+- employability_status: this column is very strongly related to the target, shown
+  in the crosstab you can run yourself with
+  pd.crosstab(df['likely_to_get_hired'], df['employability_status'])
+  Including it risks data leakage: the model would appear to perform extremely
+  well, not because it learned genuine predictive patterns from student traits,
+  but because this column nearly restates the answer already. Leaving it out gives
+  you an honest measure of how well the other, more independent features predict
+  the outcome.
+
+A fourth column deserves the same treatment, found by actually checking the
+numbers rather than by name alone:
+
+- job_readiness_score: check this yourself with
+  df.groupby('target')['job_readiness_score'].describe()
+  and separately with
+  df.select_dtypes(include='number').corr()['target'].sort_values(ascending=False)
+  You will find this column correlates with the target at roughly 0.60, far higher
+  than any other individual feature, which tends to sit closer to 0.10 to 0.15.
+  Students predicted No average a score in the mid 50s, while students predicted
+  Yes average in the mid 90s. A gap that clean and a correlation that high, for a
+  column that is itself a score rather than a raw measurement, strongly suggests it
+  is a composite metric that already factors in hireability-related information,
+  making it a leakage risk for the same reason as employability_status. Drop it
+  alongside the other three.
+
+drop_cols = ['student_id', 'likely_to_get_hired', 'employability_status',
+             'job_readiness_score', 'target']
+X = df.drop(columns=drop_cols)
+y = df['target']
+
+X.shape
+y.shape
+
+Explanation:
+X conventionally holds the feature columns, and y holds the target. df.drop with
+columns=drop_cols removes the listed columns and keeps everything else as X.
+Checking shape on both confirms X has four fewer columns than df, and that y is a
+single column matching the row count of X.
+
+Two columns that look suspicious but are actually fine, worth checking yourself so
+you recognize the difference between a real issue and a false alarm:
+
+- monthly_freelancing_income_pkr: check
+  df.groupby('freelancing_experience')['monthly_freelancing_income_pkr'].describe()
+  and you will see this is exactly 0 for every student where
+  freelancing_experience is No, and only populated with real values where it is
+  Yes. This is not missing data and not a leakage problem, it is simply a
+  structurally logical zero, a student who does not freelance has no freelancing
+  income by definition. No special handling is needed beyond what Week 1 already
+  did.
+- number_of_internships: the same pattern holds against internship_experience,
+  exactly 0 whenever internship_experience is No. Same conclusion, no action
+  needed.
+
+Optional but worth considering: this dataset also has some high-cardinality
+categorical columns, meaning columns with many unique text values, specifically
+city (20 unique values), university_name (25), specialization (48), and
+preferred_career_path (20). These are not identifiers and are not leakage risks,
+but converting all of them to numeric in Step 6 will create a large number of
+extra columns. You can choose to keep them for a richer model, or drop them for a
+simpler, faster first attempt, and compare results later. Either choice is
+reasonable; just be deliberate about it and note your choice in your final
+markdown summary.
+
+------------------------------------------------------------
+STEP 6: Convert categorical features into numbers
+------------------------------------------------------------
+
+X = pd.get_dummies(X, drop_first=True)
+X.shape
+X.head()
+
+Explanation:
+Machine learning models in scikit-learn require numeric input, but many columns in
+X are text categories, such as gender, province, and skill levels. pd.get_dummies
+converts each categorical column into a set of new columns, one per category, each
+containing 1 where that row belongs to that category and 0 otherwise. This is
+called one-hot encoding. drop_first=True drops one category per column to avoid
+redundancy, since if you know a row is not any of the other categories, it must be
+the dropped one. Checking shape afterward will show a large increase in column
+count compared to Step 5, since every category of every text column becomes its
+own column.
+
+------------------------------------------------------------
+STEP 7: Split into training and testing sets
+------------------------------------------------------------
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+X_train.shape
+X_test.shape
+
+Explanation:
+train_test_split randomly divides your data into a training portion, used to teach
+the model, and a testing portion, used to check how well it learned, without the
+model having seen those rows during training. test_size=0.2 reserves 20 percent of
+rows for testing. random_state=42 makes the random split reproducible, so running
+the cell again gives the same split rather than a different random one each time.
+stratify=y is important here specifically because of the class imbalance mentioned
+at the top of this guide: it forces both the training set and the testing set to
+keep roughly the same 96 percent to 4 percent Yes/No ratio as the full dataset,
+rather than risking a random split that happens to put almost all of the rare No
+cases into just one of the two sets.
+
+------------------------------------------------------------
+STEP 8: Train a Logistic Regression model
+------------------------------------------------------------
+
+from sklearn.linear_model import LogisticRegression
+
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+predictions = model.predict(X_test)
+
+Explanation:
+LogisticRegression is a standard starting model for binary classification.
+max_iter=1000 raises the internal limit on how many optimization steps the model
+is allowed before giving up, which is often necessary on datasets with many
+columns like this one after Step 6; the default limit can be too low and cause a
+convergence warning. model.fit(X_train, y_train) is the actual training step,
+where the model learns patterns connecting the features to the target using only
+the training data. model.predict(X_test) then asks the trained model to guess the
+target for the unseen testing rows, storing those guesses in predictions.
+
+------------------------------------------------------------
+STEP 9: Evaluate the model
+------------------------------------------------------------
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+accuracy = accuracy_score(y_test, predictions)
+precision = precision_score(y_test, predictions)
+recall = recall_score(y_test, predictions)
+f1 = f1_score(y_test, predictions)
+
+print(f"Accuracy:  {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall:    {recall:.4f}")
+print(f"F1-score:  {f1:.4f}")
+
+Explanation:
+Each function compares y_test, the true answers, against predictions, the model's
+guesses. accuracy_score gives the overall percentage of correct guesses across
+both classes, which will likely look high here simply because guessing Yes for
+almost everyone is correct 96 percent of the time. precision_score answers, out of
+everything the model predicted as the positive class, how much was actually
+correct. recall_score answers, out of everything that was actually the positive
+class, how much did the model correctly catch. f1_score combines precision and
+recall into one number. By default these functions treat 1 (Yes) as the positive
+class; given the imbalance here, it is worth also checking these same metrics
+treating 0 (No) as the positive class, since correctly identifying the rare No
+cases is arguably the more useful, harder task. You can do this by adding
+pos_label=0 as an argument to each function, for example
+precision_score(y_test, predictions, pos_label=0).
+
+------------------------------------------------------------
+STEP 10: Look at the confusion matrix
+------------------------------------------------------------
+
+from sklearn.metrics import confusion_matrix
+
+cm = confusion_matrix(y_test, predictions)
+
+plt.figure(figsize=(6, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=['No', 'Yes'], yticklabels=['No', 'Yes'])
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix - Logistic Regression')
+plt.show()
+
+Explanation:
+A confusion matrix breaks predictions down into four counts: correctly predicted
+No, correctly predicted Yes, actual No predicted as Yes, and actual Yes predicted
+as No. This is not one of the two required metrics from your brief, but it makes
+the imbalance problem visible in a way a single accuracy number cannot: watch
+specifically how many actual No cases (bottom row if No is listed second, or
+whichever row corresponds to actual No) get predicted as Yes. A model that ignores
+the minority class will show a large number there.
+
+------------------------------------------------------------
+STEP 11: Try a second model - Decision Tree
+------------------------------------------------------------
+
+from sklearn.tree import DecisionTreeClassifier
+
+tree_model = DecisionTreeClassifier(random_state=42)
+tree_model.fit(X_train, y_train)
+
+tree_predictions = tree_model.predict(X_test)
+
+tree_accuracy = accuracy_score(y_test, tree_predictions)
+tree_precision = precision_score(y_test, tree_predictions)
+tree_recall = recall_score(y_test, tree_predictions)
+tree_f1 = f1_score(y_test, tree_predictions)
+
+print(f"Accuracy:  {tree_accuracy:.4f}")
+print(f"Precision: {tree_precision:.4f}")
+print(f"Recall:    {tree_recall:.4f}")
+print(f"F1-score:  {tree_f1:.4f}")
+
+Explanation:
+This repeats the same fit, predict, and evaluate pattern from Steps 8 and 9, using
+DecisionTreeClassifier instead of LogisticRegression. random_state=42 again makes
+the result reproducible. Comparing these four numbers against the Logistic
+Regression numbers from Step 9 tells you whether a different type of model handles
+this specific data and class imbalance better or worse, which is exactly what your
+brief's Step 8 asks you to check.
+
+------------------------------------------------------------
+STEP 12: Compare both models side by side
+------------------------------------------------------------
+
+comparison = pd.DataFrame({
+    'Logistic Regression': [accuracy, precision, recall, f1],
+    'Decision Tree': [tree_accuracy, tree_precision, tree_recall, tree_f1]
+}, index=['Accuracy', 'Precision', 'Recall', 'F1-score'])
+
+comparison.round(4)
+
+Explanation:
+This puts both models' metrics into a single small table, using the values already
+calculated in Steps 9 and 11, so you can read across each row and compare the two
+models directly rather than scrolling between two separate print outputs.
+
+------------------------------------------------------------
+STEP 13: Written interpretation
+------------------------------------------------------------
+
+This step is not code. In a markdown cell, write 3 to 4 sentences covering:
+- Is the model good. Consider accuracy alongside precision, recall, and F1, not
+  accuracy alone, given the class imbalance discussed at the top of this guide.
+- What might explain its limitations. Consider the 96/4 class imbalance directly:
+  a model can score high accuracy while still being poor at catching the rare No
+  cases, which are arguably the more important ones for a hiring-readiness tool to
+  catch.
+- What you would try next. Real options include: collecting more examples of the
+  minority No class, trying class_weight='balanced' as a parameter on
+  LogisticRegression or DecisionTreeClassifier to make the model penalize missing
+  the minority class more heavily, trying a different algorithm, or revisiting
+  which features were included or excluded back in Step 5.
+
+Explanation:
+This is the step that shows you understood what the numbers mean, not just that
+you can run the functions that produce them. A reviewer reading only your metrics
+table cannot tell whether you understood the imbalance problem; this written
+interpretation is where you demonstrate that you did.
+
+------------------------------------------------------------
+END OF WEEK 2 GUIDE
+------------------------------------------------------------

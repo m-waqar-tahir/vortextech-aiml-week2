@@ -90,6 +90,7 @@ feature, with a stark mean gap between the two classes). Including either
 would make the model appear far more accurate than it actually is at
 learning real, independent predictive patterns.
 
+<<<<<<< HEAD
 ## Repository
 
 https://github.com/m-waqar-tahir/vortextech-aiml-week2
@@ -102,3 +103,9 @@ https://github.com/m-waqar-tahir/vortextech-aiml-week2
 
 Muhammad Waqar Tahir
 Vortex Tech AI & ML Internship 2026 — Week 2
+=======
+
+## Status
+
+Completed — Jul 7, 2026.
+>>>>>>> 89e741b038bf2076e658d633f72077f9479f38ef

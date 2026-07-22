@@ -90,24 +90,15 @@ feature, with a stark mean gap between the two classes). Including either
 would make the model appear far more accurate than it actually is at
 learning real, independent predictive patterns.
 
-## Submitting to GitHub
+## Repository
 
-Per the program's convention, name the repository something like
-`vortextech-aiml-week2`.
+https://github.com/m-waqar-tahir/vortextech-aiml-week2
 
-From inside this project folder:
+## Status
 
-```
-git init
-git add .
-git commit -m "Week 2: Student Employability Classification Model"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/vortextech-aiml-week2.git
-git push -u origin main
-```
+✅ Completed
 
-If the repository doesn't exist yet on GitHub, create it first (empty, no
-README) at github.com/new using that name, then run the commands above.
+## Author
 
-After pushing, fill out the Week 2 submission form with your name, track,
-and the GitHub repository link, per the program's instructions.
+Muhammad Waqar Tahir
+Vortex Tech AI & ML Internship 2026 — Week 2

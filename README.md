@@ -90,7 +90,6 @@ feature, with a stark mean gap between the two classes). Including either
 would make the model appear far more accurate than it actually is at
 learning real, independent predictive patterns.
 
-<<<<<<< HEAD
 ## Repository
 
 https://github.com/m-waqar-tahir/vortextech-aiml-week2
